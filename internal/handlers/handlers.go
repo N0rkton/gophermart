@@ -261,7 +261,7 @@ func Accrual() {
 		log.Println(err)
 	}
 	for _, v := range allOrders {
-		url := "http://" + *config.AccrualAddress + "/" + v
+		url := *config.AccrualAddress + "/" + v
 		resp, err := http.Get(url)
 		if err != nil {
 			log.Println(err)
