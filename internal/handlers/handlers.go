@@ -8,8 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/N0rkton/gophermart/internal/cookies"
-	"github.com/N0rkton/gophermart/internal/dataModels"
-	"github.com/N0rkton/gophermart/internal/secondaryFunctions"
+	"github.com/N0rkton/gophermart/internal/datamodels"
+	"github.com/N0rkton/gophermart/internal/secondaryfunctions"
 	"github.com/N0rkton/gophermart/internal/storage"
 	"strconv"
 	"time"
@@ -51,11 +51,11 @@ const authenticatedUserKey contextKey = 0
 
 func GzipHandle(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, err := cookies.ReadEncrypted(r, "UserId", secret)
+		user, err := cookies.ReadEncrypted(r, "UserID", secret)
 		if err != nil {
-			user = secondaryFunctions.GenerateRandomString(3)
+			user = secondaryfunctions.GenerateRandomString(3)
 			cookie := http.Cookie{
-				Name:     "UserId",
+				Name:     "UserID",
 				Value:    user,
 				Path:     "/",
 				HttpOnly: true,
@@ -103,13 +103,14 @@ func Init() {
 }
 
 func Register(w http.ResponseWriter, r *http.Request) {
-	var body dataModels.Reg
+	var body datamodels.Reg
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	err = db.Register(body.Login, body.Password)
+	password := secondaryfunctions.GetMD5Hash(body.Password)
+	err = db.Register(body.Login, password)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
 		http.Error(w, "login already exists", http.StatusConflict)
@@ -128,13 +129,14 @@ func Register(w http.ResponseWriter, r *http.Request) {
 }
 
 func Login(w http.ResponseWriter, r *http.Request) {
-	var body dataModels.Reg
+	var body datamodels.Reg
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	id, ok := db.Login(body.Login, body.Password)
+	password := secondaryfunctions.GetMD5Hash(body.Password)
+	id, ok := db.Login(body.Login, password)
 	if ok != nil {
 		status := mapErr(ok)
 		http.Error(w, ok.Error(), status)
@@ -160,7 +162,7 @@ func OrdersPost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	ok := db.OrdersPost(dataModels.OrderInfo{UserId: id, OrderId: orderNum})
+	ok := db.OrdersPost(datamodels.OrderInfo{UserID: id, OrderID: orderNum})
 	if ok != nil {
 		status := mapErr(ok)
 		http.Error(w, ok.Error(), status)
@@ -174,12 +176,13 @@ func OrdersGet(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized user", http.StatusUnauthorized)
 		return
 	}
-	orderList, ok := db.OrdersGet(dataModels.OrderInfo{UserId: id})
+	orderList, ok := db.OrdersGet(datamodels.OrderInfo{UserID: id})
 	if ok != nil {
 		status := mapErr(ok)
 		http.Error(w, ok.Error(), status)
 		return
 	}
+	w.Header().Set("content-type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(orderList); err != nil {
 		log.Println("jsonIndexPage: encoding response:", err)
@@ -193,12 +196,13 @@ func Balance(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized user", http.StatusUnauthorized)
 		return
 	}
-	balance, ok := db.Balance(dataModels.OrderInfo{UserId: id})
+	balance, ok := db.Balance(datamodels.OrderInfo{UserID: id})
 	if ok != nil {
 		status := mapErr(ok)
 		http.Error(w, ok.Error(), status)
 		return
 	}
+	w.Header().Set("content-type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(balance); err != nil {
 		log.Println("jsonIndexPage: encoding response:", err)
@@ -208,7 +212,7 @@ func Balance(w http.ResponseWriter, r *http.Request) {
 }
 func Withdraw(w http.ResponseWriter, r *http.Request) {
 
-	var body dataModels.Withdraw
+	var body datamodels.Withdraw
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -219,8 +223,8 @@ func Withdraw(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized user", http.StatusUnauthorized)
 		return
 	}
-	orderNum, err := strconv.Atoi(body.Order)
-	ok := db.Withdraw(dataModels.OrderInfo{UserId: id, OrderId: orderNum, Sum: body.Sum})
+	orderNum, _ := strconv.Atoi(body.Order)
+	ok := db.Withdraw(datamodels.OrderInfo{UserID: id, OrderID: orderNum, Sum: body.Sum})
 	if ok != nil {
 		status := mapErr(ok)
 		http.Error(w, ok.Error(), status)
@@ -234,12 +238,13 @@ func Withdrawals(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized user", http.StatusUnauthorized)
 		return
 	}
-	withdrawals, ok := db.Withdrawals(dataModels.OrderInfo{UserId: id})
+	withdrawals, ok := db.Withdrawals(datamodels.OrderInfo{UserID: id})
 	if ok != nil {
 		status := mapErr(ok)
 		http.Error(w, ok.Error(), status)
 		return
 	}
+	w.Header().Set("content-type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(withdrawals); err != nil {
 		log.Println("jsonIndexPage: encoding response:", err)
@@ -264,7 +269,7 @@ func Accrual() {
 			if err != nil {
 				log.Println(err)
 			}
-			var accrual dataModels.Accrual
+			var accrual datamodels.Accrual
 			err = json.Unmarshal(payload, &accrual)
 			if err != nil {
 				log.Println(err)

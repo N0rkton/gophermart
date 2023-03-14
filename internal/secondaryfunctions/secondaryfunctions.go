@@ -1,8 +1,10 @@
-package secondaryFunctions
+package secondaryfunctions
 
 import (
+	"crypto/md5"
 	"crypto/rand"
 	"encoding/base32"
+	"encoding/hex"
 )
 
 func CalculateLuhn(number int) int {
@@ -31,4 +33,8 @@ func GenerateRandomString(len int) string {
 	b := make([]byte, len)
 	rand.Read(b)
 	return base32.StdEncoding.EncodeToString(b)
+}
+func GetMD5Hash(text string) string {
+	hash := md5.Sum([]byte(text))
+	return hex.EncodeToString(hash[:])
 }

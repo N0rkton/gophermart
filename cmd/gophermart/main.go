@@ -27,12 +27,9 @@ func main() {
 
 	ticker := time.NewTicker(5 * time.Second)
 	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				handlers.Accrual()
-				fmt.Println("ticker")
-			}
+		for range ticker.C {
+			handlers.Accrual()
+			fmt.Println("ticker")
 		}
 	}()
 }

@@ -1,13 +1,13 @@
-package dataModels
+package datamodels
 
 import "time"
 
 type Auth struct {
-	Id       int
+	ID       int
 	Password string
 }
 type Order struct {
-	OrderId     string    `json:"order_id"`
+	OrderID     string    `json:"order_id"`
 	OrderStatus string    `json:"order_status"`
 	Accrual     float32   `json:"accrual,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
@@ -22,8 +22,8 @@ type Withdrawals struct {
 	ProcessedAt time.Time `json:"processed_at"`
 }
 type OrderInfo struct {
-	UserId  int
-	OrderId int
+	UserID  int
+	OrderID int
 	Sum     float64
 }
 type Reg struct {
