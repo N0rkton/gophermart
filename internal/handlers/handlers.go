@@ -110,6 +110,8 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	password := secondaryfunctions.GetMD5Hash(body.Password)
+	fmt.Println(password)
+
 	err = db.Register(body.Login, password)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
@@ -120,7 +122,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "-", http.StatusBadRequest)
 		return
 	}
-	id, err := db.Login(body.Login, body.Password)
+	id, err := db.Login(body.Login, password)
 	if err != nil {
 		http.Error(w, "server err", http.StatusInternalServerError)
 	}
@@ -136,6 +138,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	password := secondaryfunctions.GetMD5Hash(body.Password)
+	fmt.Println(password)
 	id, ok := db.Login(body.Login, password)
 	if ok != nil {
 		status := mapErr(ok)
@@ -258,7 +261,7 @@ func Accrual() {
 		log.Println(err)
 	}
 	for _, v := range allOrders {
-		url := fmt.Sprint("http://" + *config.AccrualAddress + "/" + v)
+		url := "http://" + *config.AccrualAddress + "/" + v
 		resp, err := http.Get(url)
 		if err != nil {
 			log.Println(err)

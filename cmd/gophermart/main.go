@@ -12,7 +12,13 @@ import (
 
 func main() {
 	handlers.Init()
-
+	ticker := time.NewTicker(5 * time.Second)
+	go func() {
+		for range ticker.C {
+			handlers.Accrual()
+			fmt.Println("ticker")
+		}
+	}()
 	router := mux.NewRouter()
 	router.HandleFunc("/api/user/register", handlers.Register).Methods(http.MethodPost)
 	router.HandleFunc("/api/user/login", handlers.Login).Methods(http.MethodPost)
@@ -25,11 +31,4 @@ func main() {
 
 	log.Fatal(http.ListenAndServe(config.GetServerAddress(), handlers.GzipHandle(router)))
 
-	ticker := time.NewTicker(5 * time.Second)
-	go func() {
-		for range ticker.C {
-			handlers.Accrual()
-			fmt.Println("ticker")
-		}
-	}()
 }

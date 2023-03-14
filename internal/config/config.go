@@ -37,6 +37,7 @@ func NewConfig() Cfg {
 	if accrualEnv != "" {
 		config.AccrualAddress = &accrualEnv
 	}
+
 	return config
 }
 func GetServerAddress() string {

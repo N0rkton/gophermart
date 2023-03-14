@@ -3,6 +3,7 @@ package storage
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"github.com/N0rkton/gophermart/internal/datamodels"
 	"github.com/N0rkton/gophermart/internal/secondaryfunctions"
 	"github.com/golang-migrate/migrate/v4"
@@ -87,8 +88,9 @@ func (dbs *DBStorage) Login(login string, password string) (int, error) {
 	return v.ID, nil
 }
 func (dbs *DBStorage) OrdersPost(order datamodels.OrderInfo) error {
-	check := secondaryfunctions.CalculateLuhn(order.OrderID)
-	if check != order.OrderID%10 {
+	check := secondaryfunctions.Checksum(order.OrderID)
+	fmt.Println(check)
+	if check != 0 {
 		return ErrInvalidOrder
 	}
 	orderTime := time.Now().UTC()
@@ -160,8 +162,8 @@ func (dbs *DBStorage) Balance(order datamodels.OrderInfo) (datamodels.Balance, e
 	return resp, nil
 }
 func (dbs *DBStorage) Withdraw(order datamodels.OrderInfo) error {
-	check := secondaryfunctions.CalculateLuhn(order.OrderID)
-	if check != order.OrderID%10 {
+	check := secondaryfunctions.Checksum(order.OrderID)
+	if check != 0 {
 		return ErrInvalidOrder
 	}
 	userBalance, err := dbs.Balance(order)
