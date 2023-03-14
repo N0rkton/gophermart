@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/N0rkton/gophermart/internal/config"
 	"github.com/N0rkton/gophermart/internal/handlers"
 	"github.com/gorilla/mux"
@@ -16,7 +15,6 @@ func main() {
 	go func() {
 		for range ticker.C {
 			handlers.Accrual()
-			fmt.Println("ticker")
 		}
 	}()
 	router := mux.NewRouter()

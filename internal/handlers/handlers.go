@@ -127,6 +127,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server err", http.StatusInternalServerError)
 	}
 	authUsers[r.Context().Value(authenticatedUserKey).(string)] = id
+	w.Header().Set("Set-Cookie", "true")
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -146,6 +147,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	authUsers[r.Context().Value(authenticatedUserKey).(string)] = id
+	w.Header().Set("Set-Cookie", "true")
 	w.WriteHeader(http.StatusOK)
 }
 
