@@ -3,7 +3,7 @@ package storage
 import (
 	"database/sql"
 	"errors"
-	"fmt"
+
 	"github.com/N0rkton/gophermart/internal/datamodels"
 	"github.com/N0rkton/gophermart/internal/secondaryfunctions"
 	"github.com/golang-migrate/migrate/v4"
@@ -89,7 +89,6 @@ func (dbs *DBStorage) Login(login string, password string) (int, error) {
 }
 func (dbs *DBStorage) OrdersPost(order datamodels.OrderInfo) error {
 	check := secondaryfunctions.Checksum(order.OrderID)
-	fmt.Println(check)
 	if check != 0 {
 		return ErrInvalidOrder
 	}
@@ -118,7 +117,7 @@ func (dbs *DBStorage) OrdersGet(order datamodels.OrderInfo) ([]datamodels.Order,
 
 	rows, err := dbs.db.Query("select order_id,order_status,accrual, created_at from balance where user_id=$1 ORDER BY created_at DESC ;", order.UserID)
 	if err != nil {
-		return nil, ErrNoData
+		return nil, ErrInternal
 	}
 	if rows.Err() != nil {
 		return nil, ErrNoData
@@ -133,6 +132,9 @@ func (dbs *DBStorage) OrdersGet(order datamodels.OrderInfo) ([]datamodels.Order,
 		}
 		tmp.Accrual = tmp.Accrual / 100
 		resp = append(resp, tmp)
+	}
+	if resp == nil {
+		return nil, ErrNoData
 	}
 	return resp, nil
 }
@@ -191,7 +193,7 @@ func (dbs *DBStorage) Withdrawals(order datamodels.OrderInfo) ([]datamodels.With
 		return nil, ErrNoData
 	}
 	if rows.Err() != nil {
-		return nil, ErrNoData
+		return nil, ErrInternal
 	}
 	defer rows.Close()
 	var resp []datamodels.Withdrawals
@@ -203,6 +205,9 @@ func (dbs *DBStorage) Withdrawals(order datamodels.OrderInfo) ([]datamodels.With
 		}
 		tmp.Sum = math.Abs(tmp.Sum / 100)
 		resp = append(resp, tmp)
+	}
+	if resp == nil {
+		return nil, ErrNoData
 	}
 	return resp, nil
 }

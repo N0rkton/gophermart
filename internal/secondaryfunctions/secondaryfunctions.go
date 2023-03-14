@@ -7,13 +7,6 @@ import (
 	"encoding/hex"
 )
 
-func CalculateLuhn(number int) int {
-	checkNumber := Checksum(number)
-	if checkNumber == 0 {
-		return 0
-	}
-	return 10 - checkNumber
-}
 func Checksum(number int) int {
 	var luhn int
 	for i := 0; number > 0; i++ {
