@@ -1,15 +1,18 @@
 package main
 
 import (
+	"fmt"
 	"github.com/N0rkton/gophermart/internal/config"
 	"github.com/N0rkton/gophermart/internal/handlers"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
+	"time"
 )
 
 func main() {
 	handlers.Init()
+
 	router := mux.NewRouter()
 	router.HandleFunc("/api/user/register", handlers.Register).Methods(http.MethodPost)
 	router.HandleFunc("/api/user/login", handlers.Login).Methods(http.MethodPost)
@@ -21,4 +24,15 @@ func main() {
 	router.HandleFunc("/api/user/withdrawals", handlers.Withdrawals).Methods(http.MethodGet)
 
 	log.Fatal(http.ListenAndServe(config.GetServerAddress(), handlers.GzipHandle(router)))
+
+	ticker := time.NewTicker(5 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				handlers.Accrual()
+				fmt.Println("ticker")
+			}
+		}
+	}()
 }

@@ -2,20 +2,23 @@ package storage
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
+	"github.com/N0rkton/gophermart/internal/dataModels"
+	"github.com/N0rkton/gophermart/internal/secondaryFunctions"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"log"
 	"math"
+	"strconv"
 
 	"time"
 )
 
+// md5 cash for password
 var (
 	ErrNotFound         = errors.New("not found")
 	ErrWrongPassword    = errors.New("invalid password")
@@ -27,17 +30,20 @@ var (
 	ErrNotEnoughMoney   = errors.New("not enough money")
 )
 
+// иодель передаваемых данных
 type Storage interface {
 	Register(login string, password string) error
 	Login(login string, password string) (int, error)
-	OrdersPost(id int, order int) error
-	OrdersGet(id int) ([]byte, error)
-	Balance(id int) ([]byte, error)
-	Withdraw(id int, order int, sum float32) error
-	Withdrawals(id int) ([]byte, error)
+	OrdersPost(order dataModels.OrderInfo) error
+	OrdersGet(order dataModels.OrderInfo) ([]dataModels.Order, error)
+	Balance(order dataModels.OrderInfo) (dataModels.Balance, error)
+	Withdraw(order dataModels.OrderInfo) error
+	Withdrawals(order dataModels.OrderInfo) ([]dataModels.Withdrawals, error)
+	GetAllOrdersForAccrual() ([]string, error)
+	UpdateAccrual(accrual dataModels.Accrual) error
 }
 type DBStorage struct {
-	DB *sql.DB
+	db *sql.DB
 }
 
 func NewDBStorage(path string) (Storage, error) {
@@ -62,179 +68,153 @@ func NewDBStorage(path string) (Storage, error) {
 	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return nil, err
 	}
-	return &DBStorage{DB: db}, nil
+	return &DBStorage{db: db}, nil
 }
 func (dbs *DBStorage) Register(login string, password string) error {
-	_, err := dbs.DB.Exec("insert into users (login, password) values ($1, $2);", login, password)
+	_, err := dbs.db.Exec("insert into users (login, password) values ($1, $2);", login, password)
 	return err
 }
 func (dbs *DBStorage) Login(login string, password string) (int, error) {
-	rows := dbs.DB.QueryRow("select id,password from users where login=$1 limit 1;", login)
-	type auth struct {
-		id       int
-		password string
-	}
-	var v auth
-	err := rows.Scan(&v.id, &v.password)
+	rows := dbs.db.QueryRow("select id,password from users where login=$1 limit 1;", login)
+	var v dataModels.Auth
+	err := rows.Scan(&v.Id, &v.Password)
 	if err != nil {
 		return -1, ErrNotFound
 	}
-	if v.password != password {
+	if v.Password != password {
 		return -1, ErrWrongPassword
 	}
-	return v.id, nil
+	return v.Id, nil
 }
-func (dbs *DBStorage) OrdersPost(id int, order int) error {
-	check := calculateLuhn(order)
-	if check != order%10 {
+func (dbs *DBStorage) OrdersPost(order dataModels.OrderInfo) error {
+	check := secondaryFunctions.CalculateLuhn(order.OrderId)
+	if check != order.OrderId%10 {
 		return ErrInvalidOrder
 	}
-	orderTime := time.Now().Format(time.RFC3339)
-	_, err := dbs.DB.Exec("insert into balance (user_id, order_id,created_at) values ($1, $2,$3);", id, order, orderTime)
+	orderTime := time.Now().UTC()
+	_, err := dbs.db.Exec("insert into balance (user_id, order_id,created_at) values ($1, $2,$3);", order.UserId, strconv.Itoa(order.OrderId), orderTime.Format(time.RFC3339))
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
-		rows := dbs.DB.QueryRow("select user_id from balance where order_id=$1 limit 1;", order)
+		rows := dbs.db.QueryRow("select user_id from balance where order_id=$1 limit 1;", strconv.Itoa(order.OrderId))
 		var v int
 		err := rows.Scan(&v)
 		if err != nil {
 			return ErrInternal
 		}
-		if v == id {
+		if v == order.UserId {
 			return ErrAlreadyOrdered
 		}
 		return ErrAnotherUserOrder
 	}
+	if err != nil {
+		return ErrInternal
+	}
 	return nil
 }
-func calculateLuhn(number int) int {
-	checkNumber := checksum(number)
-	if checkNumber == 0 {
-		return 0
-	}
-	return 10 - checkNumber
-}
-func checksum(number int) int {
-	var luhn int
-	for i := 0; number > 0; i++ {
-		cur := number % 10
-		if i%2 == 0 { // even
-			cur = cur * 2
-			if cur > 9 {
-				cur = cur%10 + cur/10
-			}
-		}
-		luhn += cur
-		number = number / 10
-	}
-	return luhn % 10
-}
 
-func (dbs *DBStorage) OrdersGet(id int) ([]byte, error) {
-	type balance struct {
-		Order_id     int       `json:"order_id"`
-		Order_status string    `json:"order_status"`
-		Accrual      float32   `json:"accrual"`
-		Created_at   time.Time `json:"created_at"`
-	}
-	rows, err := dbs.DB.Query("select order_id,order_status,accrual, created_at from balance where user_id=$1 ORDER BY created_at DESC ;", id)
+func (dbs *DBStorage) OrdersGet(order dataModels.OrderInfo) ([]dataModels.Order, error) {
+
+	rows, err := dbs.db.Query("select order_id,order_status,accrual, created_at from balance where user_id=$1 ORDER BY created_at DESC ;", order.UserId)
 	if err != nil {
 		return nil, ErrNoData
 	}
-	var resp []balance
-	var tmp balance
+	defer rows.Close()
+	var resp []dataModels.Order
+	var tmp dataModels.Order
 	for rows.Next() {
-		err = rows.Scan(&tmp.Order_id, &tmp.Order_status, &tmp.Accrual, &tmp.Created_at)
+		err = rows.Scan(&tmp.OrderId, &tmp.OrderStatus, &tmp.Accrual, &tmp.CreatedAt)
 		if err != nil {
 			return nil, ErrInternal
 		}
+		tmp.Accrual = tmp.Accrual / 100
 		resp = append(resp, tmp)
 	}
-	var w []byte
-	w, err = json.Marshal(resp)
-	if err != nil {
-		return nil, ErrInternal
-	}
-	return w, nil
+	return resp, nil
 }
 
-type balance struct {
-	Current   float32 `json:"current"`
-	Withdrawn float32 `json:"withdrawn"`
-}
-
-func (dbs *DBStorage) Balance(id int) ([]byte, error) {
-	rows, err := dbs.DB.Query("select accrual from balance where user_id=$1 and order_status='PROCESSED';", id)
+func (dbs *DBStorage) Balance(order dataModels.OrderInfo) (dataModels.Balance, error) {
+	rows, err := dbs.db.Query("select accrual from balance where user_id=$1 and order_status='PROCESSED';", order.UserId)
 	if err != nil {
-		return nil, ErrNoData
+		return dataModels.Balance{}, ErrNoData
 	}
-	var accrual float32
-	var resp balance
+	defer rows.Close()
+	var accrual float64
+	var resp dataModels.Balance
 	for rows.Next() {
 		err = rows.Scan(&accrual)
 		if err != nil {
-			return nil, ErrInternal
+			return dataModels.Balance{}, ErrInternal
 		}
-		resp.Current += accrual
+		resp.Current += accrual / 100
 		if accrual < 0 {
-			resp.Withdrawn += float32(math.Abs(float64(accrual)))
+			resp.Withdrawn += math.Abs(accrual / 100)
 		}
 	}
-	var w []byte
-	w, err = json.Marshal(resp)
-	if err != nil {
-		return nil, ErrInternal
-	}
-	return w, nil
+
+	return resp, nil
 }
-func (dbs *DBStorage) Withdraw(id int, order int, sum float32) error {
-	check := calculateLuhn(order)
-	if check != order%10 {
+func (dbs *DBStorage) Withdraw(order dataModels.OrderInfo) error {
+	check := secondaryFunctions.CalculateLuhn(order.OrderId)
+	if check != order.OrderId%10 {
 		return ErrInvalidOrder
 	}
-	bal, err := dbs.Balance(id)
+	userBalance, err := dbs.Balance(order)
 	if err != nil {
 		return ErrInternal
 	}
-	var userBalance balance
-	err = json.Unmarshal(bal, &userBalance)
-	if err != nil {
-		return ErrInternal
-	}
-	if userBalance.Current < sum {
+	if userBalance.Current < order.Sum {
 		return ErrNotEnoughMoney
 	}
 	orderTime := time.Now().Format(time.RFC3339)
-	_, err = dbs.DB.Exec("insert into balance (user_id, order_id,created_at,accrual,order_status) values ($1, $2,$3,$4,$5);", id, order, orderTime, -sum, "PROCESSED")
+	_, err = dbs.db.Exec("insert into balance (user_id, order_id,created_at,accrual,order_status) values ($1, $2,$3,$4,$5);", order.UserId, strconv.Itoa(order.OrderId), orderTime, int(-order.Sum*100), "PROCESSED")
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
 		return ErrInvalidOrder
 	}
+	if err != nil {
+		return ErrInternal
+	}
 	return nil
 }
-func (dbs *DBStorage) Withdrawals(id int) ([]byte, error) {
-	type withdrawals struct {
-		Order        int       `json:"order"`
-		Sum          float32   `json:"sum"`
-		Processed_at time.Time `json:"processed_at"`
-	}
-	rows, err := dbs.DB.Query("select order_id,accrual, created_at from balance where user_id=$1 and accrual<0 ORDER BY created_at DESC ;", id)
+func (dbs *DBStorage) Withdrawals(order dataModels.OrderInfo) ([]dataModels.Withdrawals, error) {
+
+	rows, err := dbs.db.Query("select order_id,accrual, created_at from balance where user_id=$1 and accrual<0 ORDER BY created_at DESC ;", order.UserId)
 	if err != nil {
 		return nil, ErrNoData
 	}
-	var resp []withdrawals
-	var tmp withdrawals
+	defer rows.Close()
+	var resp []dataModels.Withdrawals
+	var tmp dataModels.Withdrawals
 	for rows.Next() {
-		err = rows.Scan(&tmp.Order, &tmp.Sum, &tmp.Processed_at)
+		err = rows.Scan(&tmp.Order, &tmp.Sum, &tmp.ProcessedAt)
 		if err != nil {
 			return nil, ErrInternal
 		}
-		tmp.Sum = float32(math.Abs(float64(tmp.Sum)))
+		tmp.Sum = math.Abs(tmp.Sum / 100)
 		resp = append(resp, tmp)
 	}
-	var w []byte
-	w, err = json.Marshal(resp)
+	return resp, nil
+}
+func (dbs *DBStorage) GetAllOrdersForAccrual() ([]string, error) {
+	rows, err := dbs.db.Query("select order_id from balance where order_status!='INVALID' and order_status!='PROCESSED';")
 	if err != nil {
-		return nil, ErrInternal
+		return nil, ErrNoData
 	}
-	return w, nil
+	var allOrders []string
+	var tmp string
+	for rows.Next() {
+		err = rows.Scan(&tmp)
+		if err != nil {
+			return nil, ErrInternal
+		}
+		allOrders = append(allOrders, tmp)
+	}
+	return allOrders, nil
+}
+func (dbs *DBStorage) UpdateAccrual(accrual dataModels.Accrual) error {
+	_, err := dbs.db.Exec("UPDATE balance SET accrual = $1, order_status=$2 WHERE order_id = $3 ;", accrual.Accrual, accrual.Status, accrual.Order)
+	if err != nil {
+		log.Panicln(err)
+	}
+	return nil
 }

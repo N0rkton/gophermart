@@ -3,14 +3,16 @@ package handlers
 import (
 	"compress/gzip"
 	"context"
-	"crypto/rand"
-	"encoding/base32"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/N0rkton/gophermart/internal/cookies"
+	"github.com/N0rkton/gophermart/internal/dataModels"
+	"github.com/N0rkton/gophermart/internal/secondaryFunctions"
 	"github.com/N0rkton/gophermart/internal/storage"
 	"strconv"
+	"time"
 
 	conf "github.com/N0rkton/gophermart/internal/config"
 	"github.com/jackc/pgerrcode"
@@ -51,7 +53,7 @@ func GzipHandle(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, err := cookies.ReadEncrypted(r, "UserId", secret)
 		if err != nil {
-			user = generateRandomString(3)
+			user = secondaryFunctions.GenerateRandomString(3)
 			cookie := http.Cookie{
 				Name:     "UserId",
 				Value:    user,
@@ -100,13 +102,8 @@ func Init() {
 	authUsers = make(map[string]int)
 }
 
-type reg struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
-}
-
 func Register(w http.ResponseWriter, r *http.Request) {
-	var body reg
+	var body dataModels.Reg
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -131,7 +128,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 }
 
 func Login(w http.ResponseWriter, r *http.Request) {
-	var body reg
+	var body dataModels.Reg
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -163,7 +160,7 @@ func OrdersPost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	ok := db.OrdersPost(id, orderNum)
+	ok := db.OrdersPost(dataModels.OrderInfo{UserId: id, OrderId: orderNum})
 	if ok != nil {
 		status := mapErr(ok)
 		http.Error(w, ok.Error(), status)
@@ -177,14 +174,18 @@ func OrdersGet(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized user", http.StatusUnauthorized)
 		return
 	}
-	orderList, ok := db.OrdersGet(id)
+	orderList, ok := db.OrdersGet(dataModels.OrderInfo{UserId: id})
 	if ok != nil {
 		status := mapErr(ok)
 		http.Error(w, ok.Error(), status)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	w.Write(orderList)
+	if err := json.NewEncoder(w).Encode(orderList); err != nil {
+		log.Println("jsonIndexPage: encoding response:", err)
+		http.Error(w, "unable to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 func Balance(w http.ResponseWriter, r *http.Request) {
 	id, ok2 := authUsers[r.Context().Value(authenticatedUserKey).(string)]
@@ -192,21 +193,22 @@ func Balance(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized user", http.StatusUnauthorized)
 		return
 	}
-	balance, ok := db.Balance(id)
+	balance, ok := db.Balance(dataModels.OrderInfo{UserId: id})
 	if ok != nil {
 		status := mapErr(ok)
 		http.Error(w, ok.Error(), status)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	w.Write(balance)
+	if err := json.NewEncoder(w).Encode(balance); err != nil {
+		log.Println("jsonIndexPage: encoding response:", err)
+		http.Error(w, "unable to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 func Withdraw(w http.ResponseWriter, r *http.Request) {
-	type withdraw struct {
-		Order int     `json:"order"`
-		Sum   float32 `json:"sum"`
-	}
-	var body withdraw
+
+	var body dataModels.Withdraw
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -217,7 +219,8 @@ func Withdraw(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized user", http.StatusUnauthorized)
 		return
 	}
-	ok := db.Withdraw(id, body.Order, body.Sum)
+	orderNum, err := strconv.Atoi(body.Order)
+	ok := db.Withdraw(dataModels.OrderInfo{UserId: id, OrderId: orderNum, Sum: body.Sum})
 	if ok != nil {
 		status := mapErr(ok)
 		http.Error(w, ok.Error(), status)
@@ -231,21 +234,47 @@ func Withdrawals(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized user", http.StatusUnauthorized)
 		return
 	}
-	withdrawals, ok := db.Withdrawals(id)
+	withdrawals, ok := db.Withdrawals(dataModels.OrderInfo{UserId: id})
 	if ok != nil {
 		status := mapErr(ok)
 		http.Error(w, ok.Error(), status)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	w.Write(withdrawals)
+	if err := json.NewEncoder(w).Encode(withdrawals); err != nil {
+		log.Println("jsonIndexPage: encoding response:", err)
+		http.Error(w, "unable to encode response", http.StatusInternalServerError)
+		return
+	}
 }
-func generateRandomString(len int) string {
-	b := make([]byte, len)
-	rand.Read(b)
-	return base32.StdEncoding.EncodeToString(b)
+func Accrual() {
+	allOrders, err := db.GetAllOrdersForAccrual()
+	if err != nil {
+		log.Println(err)
+	}
+	for _, v := range allOrders {
+		url := fmt.Sprint("http://" + *config.AccrualAddress + "/" + v)
+		resp, err := http.Get(url)
+		if err != nil {
+			log.Println(err)
+		}
+		if resp.StatusCode == http.StatusOK {
+			defer resp.Body.Close()
+			payload, err := io.ReadAll(resp.Body)
+			if err != nil {
+				log.Println(err)
+			}
+			var accrual dataModels.Accrual
+			err = json.Unmarshal(payload, &accrual)
+			if err != nil {
+				log.Println(err)
+			}
+		}
+		if resp.StatusCode == http.StatusTooManyRequests {
+			time.Sleep(60 * time.Second)
+		}
+	}
 }
-
 func mapErr(err error) int {
 	if errors.Is(err, storage.ErrNotFound) {
 		return http.StatusBadRequest

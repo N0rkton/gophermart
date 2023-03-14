@@ -20,12 +20,12 @@ var config Cfg
 func init() {
 	config.ServerAddress = *flag.String("a", "localhost:8080", "server address")
 	config.DBAddress = flag.String("d", "", "data base connection address")
-	config.DBAddress = flag.String("r", "", "accrual system address connection address")
+	config.AccrualAddress = flag.String("r", "", "accrual system server address")
 }
 func NewConfig() Cfg {
 	flag.Parse()
 	dbAddressEnv := os.Getenv("DATABASE_URI")
-	dbAddressEnv = "postgresql://localhost:5432/shvm"
+	//dbAddressEnv = "postgresql://localhost:5432/shvm"
 	if dbAddressEnv != "" {
 		config.DBAddress = &dbAddressEnv
 	}
