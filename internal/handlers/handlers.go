@@ -53,20 +53,7 @@ func GzipHandle(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, err := cookies.ReadEncrypted(r, "UserID", secret)
 		if err != nil {
-			user = secondaryfunctions.GenerateRandomString(3)
-			cookie := http.Cookie{
-				Name:     "UserID",
-				Value:    user,
-				Path:     "/api/user",
-				HttpOnly: true,
-				Secure:   false,
-			}
-			err = cookies.WriteEncrypted(w, cookie, secret)
-			if err != nil {
-				log.Println(err)
-				http.Error(w, "server error", http.StatusInternalServerError)
-				return
-			}
+			user = "err"
 		}
 		ctxWithUser := context.WithValue(r.Context(), authenticatedUserKey, user)
 		rWithUser := r.WithContext(ctxWithUser)
@@ -126,7 +113,21 @@ func Register(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "server err", http.StatusInternalServerError)
 	}
-	authUsers[r.Context().Value(authenticatedUserKey).(string)] = id
+	user := secondaryfunctions.GenerateRandomString(3)
+	cookie := http.Cookie{
+		Name:     "UserID",
+		Value:    user,
+		Path:     "/api/user",
+		HttpOnly: true,
+		Secure:   false,
+	}
+	err = cookies.WriteEncrypted(w, cookie, secret)
+	if err != nil {
+		log.Println(err)
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	authUsers[user] = id
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -146,7 +147,21 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, ok.Error(), status)
 		return
 	}
-	authUsers[r.Context().Value(authenticatedUserKey).(string)] = id
+	user := secondaryfunctions.GenerateRandomString(3)
+	cookie := http.Cookie{
+		Name:     "UserID",
+		Value:    user,
+		Path:     "/api/user",
+		HttpOnly: true,
+		Secure:   false,
+	}
+	err = cookies.WriteEncrypted(w, cookie, secret)
+	if err != nil {
+		log.Println(err)
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	authUsers[user] = id
 	w.WriteHeader(http.StatusOK)
 }
 
