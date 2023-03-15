@@ -25,8 +25,6 @@ func init() {
 func NewConfig() Cfg {
 	flag.Parse()
 	dbAddressEnv := os.Getenv("DATABASE_URI")
-	//dbAddressEnv = "postgresql://localhost:5432/shvm"
-	//AccrualAddress = ""
 
 	if dbAddressEnv != "" {
 		config.DBAddress = &dbAddressEnv
