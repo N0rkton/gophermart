@@ -230,7 +230,8 @@ func (dbs *DBStorage) GetAllOrdersForAccrual() ([]string, error) {
 	return allOrders, nil
 }
 func (dbs *DBStorage) UpdateAccrual(accrual datamodels.Accrual) error {
-	_, err := dbs.db.Exec("UPDATE balance SET accrual = $1, order_status=$2 WHERE order_id = $3 ;", accrual.Accrual, accrual.Status, accrual.Order)
+	accrual.Accrual *= 100
+	_, err := dbs.db.Exec("UPDATE balance SET accrual = $1, order_status=$2 WHERE order_id = $3 ;", int(accrual.Accrual), accrual.Status, accrual.Order)
 	if err != nil {
 		log.Panicln(err)
 	}

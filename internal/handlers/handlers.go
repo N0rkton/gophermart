@@ -277,29 +277,33 @@ func Accrual() {
 		log.Println(err)
 		return
 	}
+	if allOrders == nil {
+		return
+	}
 	for _, v := range allOrders {
-		url := *config.AccrualAddress + "/" + v
+		url := *config.AccrualAddress + "/api/orders/" + v
 		resp, err := http.Get(url)
 		if err != nil {
 			log.Println(err)
-			return
+			continue
 		}
 		if resp.StatusCode == http.StatusOK {
 			defer resp.Body.Close()
 			payload, err := io.ReadAll(resp.Body)
 			if err != nil {
 				log.Println(err)
-				return
+				continue
 			}
 			var accrual datamodels.Accrual
 			err = json.Unmarshal(payload, &accrual)
 			if err != nil {
 				log.Println(err)
-				return
+				continue
 			}
+			db.UpdateAccrual(accrual)
 		}
 		if resp.StatusCode == http.StatusTooManyRequests {
-			time.Sleep(60 * time.Second)
+			time.Sleep(3 * time.Second)
 		}
 	}
 }
