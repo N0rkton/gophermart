@@ -7,10 +7,10 @@ type Auth struct {
 	Password string
 }
 type Order struct {
-	OrderID     string    `json:"order_id"`
-	OrderStatus string    `json:"order_status"`
+	OrderID     string    `json:"number"`
+	OrderStatus string    `json:"status"`
 	Accrual     float32   `json:"accrual,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
+	CreatedAt   time.Time `json:"uploaded_at"`
 }
 type Balance struct {
 	Current   float64 `json:"current"`
