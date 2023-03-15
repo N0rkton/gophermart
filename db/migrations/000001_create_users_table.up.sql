@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS balance (
     accrual int default 0 ,
     order_id varchar(255) NOT NULL UNIQUE,
     order_status order_state DEFAULT 'NEW',
-    created_at timestamp with time zone
+    created_at timestamp with time zone default now()
 );
 COMMIT;
 

@@ -57,20 +57,17 @@ func GzipHandle(next http.Handler) http.Handler {
 			cookie := http.Cookie{
 				Name:     "UserID",
 				Value:    user,
-				Path:     "/",
+				Path:     "/api/user",
 				HttpOnly: true,
 				Secure:   false,
 			}
-
 			err = cookies.WriteEncrypted(w, cookie, secret)
 			if err != nil {
 				log.Println(err)
 				http.Error(w, "server error", http.StatusInternalServerError)
 				return
 			}
-			http.SetCookie(w, &cookie)
 		}
-
 		ctxWithUser := context.WithValue(r.Context(), authenticatedUserKey, user)
 		rWithUser := r.WithContext(ctxWithUser)
 		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
@@ -150,7 +147,6 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	authUsers[r.Context().Value(authenticatedUserKey).(string)] = id
-	//w.Header().Set("Set-Cookie", "true")
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -264,23 +260,27 @@ func Accrual() {
 	allOrders, err := db.GetAllOrdersForAccrual()
 	if err != nil {
 		log.Println(err)
+		return
 	}
 	for _, v := range allOrders {
 		url := *config.AccrualAddress + "/" + v
 		resp, err := http.Get(url)
 		if err != nil {
 			log.Println(err)
+			return
 		}
 		if resp.StatusCode == http.StatusOK {
 			defer resp.Body.Close()
 			payload, err := io.ReadAll(resp.Body)
 			if err != nil {
 				log.Println(err)
+				return
 			}
 			var accrual datamodels.Accrual
 			err = json.Unmarshal(payload, &accrual)
 			if err != nil {
 				log.Println(err)
+				return
 			}
 		}
 		if resp.StatusCode == http.StatusTooManyRequests {
