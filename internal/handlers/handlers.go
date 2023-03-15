@@ -61,13 +61,16 @@ func GzipHandle(next http.Handler) http.Handler {
 				HttpOnly: true,
 				Secure:   false,
 			}
+
 			err = cookies.WriteEncrypted(w, cookie, secret)
 			if err != nil {
 				log.Println(err)
 				http.Error(w, "server error", http.StatusInternalServerError)
 				return
 			}
+			http.SetCookie(w, &cookie)
 		}
+
 		ctxWithUser := context.WithValue(r.Context(), authenticatedUserKey, user)
 		rWithUser := r.WithContext(ctxWithUser)
 		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
@@ -127,7 +130,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server err", http.StatusInternalServerError)
 	}
 	authUsers[r.Context().Value(authenticatedUserKey).(string)] = id
-	w.Header().Set("Set-Cookie", "true")
+
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -147,7 +150,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	authUsers[r.Context().Value(authenticatedUserKey).(string)] = id
-	w.Header().Set("Set-Cookie", "true")
+	//w.Header().Set("Set-Cookie", "true")
 	w.WriteHeader(http.StatusOK)
 }
 

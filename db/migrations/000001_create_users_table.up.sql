@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS balance (
     id SERIAL PRIMARY KEY,
     user_id int references users(id),
-    accrual int ,
+    accrual int default 0 ,
     order_id varchar(255) NOT NULL UNIQUE,
     order_status order_state DEFAULT 'NEW',
     created_at timestamp with time zone

@@ -114,7 +114,6 @@ func (dbs *DBStorage) OrdersPost(order datamodels.OrderInfo) error {
 }
 
 func (dbs *DBStorage) OrdersGet(order datamodels.OrderInfo) ([]datamodels.Order, error) {
-
 	rows, err := dbs.db.Query("select order_id,order_status,accrual, created_at from balance where user_id=$1 ORDER BY created_at DESC ;", order.UserID)
 	if err != nil {
 		return nil, ErrInternal
