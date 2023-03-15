@@ -14,7 +14,7 @@ func main() {
 	ticker := time.NewTicker(5 * time.Second)
 	go func() {
 		for range ticker.C {
-			//handlers.Accrual()
+			handlers.Accrual()
 		}
 	}()
 	router := mux.NewRouter()
