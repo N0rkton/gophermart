@@ -12,7 +12,7 @@ import (
 
 func main() {
 	ws := handlers.Init()
-	as := accrual.Wrapper{ws.DB}
+	as := accrual.Wrapper{DB: ws.DB}
 	ticker := time.NewTicker(5 * time.Second)
 	go func() {
 		for range ticker.C {
