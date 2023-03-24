@@ -1,4 +1,4 @@
-package accrual
+package accrualClient
 
 import (
 	"encoding/json"

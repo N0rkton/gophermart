@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/N0rkton/gophermart/cmd/gophermart/accrual"
+	"github.com/N0rkton/gophermart/cmd/gophermart/accrualClient"
 	"github.com/N0rkton/gophermart/internal/config"
 	"github.com/N0rkton/gophermart/internal/datamodels"
 	"github.com/N0rkton/gophermart/internal/handlers"
@@ -44,7 +44,7 @@ func orders(db storage.Storage) {
 		return
 	}
 	for _, v := range allOrders {
-		var order accrual.Order
+		var order accrualClient.Order
 		order, err = order.GetOrder(v)
 		if err == nil {
 			db.UpdateAccrual(datamodels.Accrual{Order: order.OrderId, Accrual: order.Accrual, Status: order.Status})
