@@ -1,4 +1,4 @@
-package accrualClient
+package accrualclient
 
 import (
 	"encoding/json"
@@ -15,7 +15,7 @@ type AccrualClient interface {
 	GetOrder(v string) (datamodels.Accrual, error)
 }
 type Order struct {
-	OrderId string  `json:"order"`
+	OrderID string  `json:"order"`
 	Status  string  `json:"status"`
 	Accrual float32 `json:"accrual"`
 }

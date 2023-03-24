@@ -44,10 +44,10 @@ func orders(db storage.Storage) {
 		return
 	}
 	for _, v := range allOrders {
-		var order accrualClient.Order
+		var order accrualclient.Order
 		order, err = order.GetOrder(v)
 		if err == nil {
-			db.UpdateAccrual(datamodels.Accrual{Order: order.OrderId, Accrual: order.Accrual, Status: order.Status})
+			db.UpdateAccrual(datamodels.Accrual{Order: order.OrderID, Accrual: order.Accrual, Status: order.Status})
 		}
 	}
 }

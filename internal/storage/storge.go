@@ -113,7 +113,7 @@ func (dbs *DBStorage) OrdersPost(order datamodels.OrderInfo) error {
 }
 
 func (dbs *DBStorage) GetOrderList(order datamodels.OrderInfo) ([]datamodels.Order, error) {
-	rows, err := dbs.db.Query("select order_id,order_status,accrualClient, created_at from balance where user_id=$1 ORDER BY created_at DESC ;", order.UserID)
+	rows, err := dbs.db.Query("select order_id,order_status,accrual, created_at from balance where user_id=$1 ORDER BY created_at DESC ;", order.UserID)
 	if err != nil {
 		return nil, ErrInternal
 	}
@@ -138,7 +138,7 @@ func (dbs *DBStorage) GetOrderList(order datamodels.OrderInfo) ([]datamodels.Ord
 }
 
 func (dbs *DBStorage) Balance(order datamodels.OrderInfo) (datamodels.Balance, error) {
-	rows, err := dbs.db.Query("select accrualClient from balance where user_id=$1 and order_status='PROCESSED';", order.UserID)
+	rows, err := dbs.db.Query("select accrual from balance where user_id=$1 and order_status='PROCESSED';", order.UserID)
 	if err != nil {
 		return datamodels.Balance{}, ErrNoData
 	}
@@ -174,7 +174,7 @@ func (dbs *DBStorage) Withdraw(order datamodels.OrderInfo) error {
 		return ErrNotEnoughMoney
 	}
 	orderTime := time.Now().Format(time.RFC3339)
-	_, err = dbs.db.Exec("insert into balance (user_id, order_id,created_at,accrualClient,order_status) values ($1, $2,$3,$4,$5);", order.UserID, strconv.Itoa(order.OrderID), orderTime, int(-order.Sum*100), "PROCESSED")
+	_, err = dbs.db.Exec("insert into balance (user_id, order_id,created_at,accrual,order_status) values ($1, $2,$3,$4,$5);", order.UserID, strconv.Itoa(order.OrderID), orderTime, int(-order.Sum*100), "PROCESSED")
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
 		return ErrInvalidOrder
@@ -186,7 +186,7 @@ func (dbs *DBStorage) Withdraw(order datamodels.OrderInfo) error {
 }
 func (dbs *DBStorage) GetWithdrawList(order datamodels.OrderInfo) ([]datamodels.Withdrawals, error) {
 
-	rows, err := dbs.db.Query("select order_id,accrualClient, created_at from balance where user_id=$1 and accrualClient<0 ORDER BY created_at DESC ;", order.UserID)
+	rows, err := dbs.db.Query("select order_id,accrual, created_at from balance where user_id=$1 and accrual<0 ORDER BY created_at DESC ;", order.UserID)
 	if err != nil {
 		return nil, ErrNoData
 	}
@@ -230,7 +230,7 @@ func (dbs *DBStorage) GetAllOrdersForAccrual() ([]string, error) {
 }
 func (dbs *DBStorage) UpdateAccrual(accrual datamodels.Accrual) error {
 	accrual.Accrual *= 100
-	_, err := dbs.db.Exec("UPDATE balance SET accrualClient = $1, order_status=$2 WHERE order_id = $3 ;", int(accrual.Accrual), accrual.Status, accrual.Order)
+	_, err := dbs.db.Exec("UPDATE balance SET accrual = $1, order_status=$2 WHERE order_id = $3 ;", int(accrual.Accrual), accrual.Status, accrual.Order)
 	if err != nil {
 		log.Println(err)
 	}
