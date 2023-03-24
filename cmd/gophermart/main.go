@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/N0rkton/gophermart/cmd/gophermart/accrualClient"
+	"github.com/N0rkton/gophermart/cmd/gophermart/accrualclient"
 	"github.com/N0rkton/gophermart/internal/config"
 	"github.com/N0rkton/gophermart/internal/datamodels"
 	"github.com/N0rkton/gophermart/internal/handlers"
