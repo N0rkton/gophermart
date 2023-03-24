@@ -3,7 +3,9 @@ package main
 import (
 	"github.com/N0rkton/gophermart/cmd/gophermart/accrual"
 	"github.com/N0rkton/gophermart/internal/config"
+	"github.com/N0rkton/gophermart/internal/datamodels"
 	"github.com/N0rkton/gophermart/internal/handlers"
+	"github.com/N0rkton/gophermart/internal/storage"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -12,11 +14,11 @@ import (
 
 func main() {
 	ws := handlers.Init()
-	as := accrual.Wrapper{DB: ws.DB}
+
 	ticker := time.NewTicker(5 * time.Second)
 	go func() {
 		for range ticker.C {
-			as.Accrual()
+			orders(ws.DB)
 		}
 	}()
 	router := mux.NewRouter()
@@ -31,4 +33,21 @@ func main() {
 
 	log.Fatal(http.ListenAndServe(config.GetServerAddress(), ws.GzipHandle(router)))
 
+}
+func orders(db storage.Storage) {
+	allOrders, err := db.GetAllOrdersForAccrual()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	if allOrders == nil {
+		return
+	}
+	for _, v := range allOrders {
+		var order accrual.Order
+		order, err = order.GetOrder(v)
+		if err == nil {
+			db.UpdateAccrual(datamodels.Accrual{Order: order.OrderId, Accrual: order.Accrual, Status: order.Status})
+		}
+	}
 }

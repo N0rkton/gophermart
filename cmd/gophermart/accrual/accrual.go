@@ -2,53 +2,50 @@ package accrual
 
 import (
 	"encoding/json"
+	"errors"
 	conf "github.com/N0rkton/gophermart/internal/config"
 	"github.com/N0rkton/gophermart/internal/datamodels"
-	"github.com/N0rkton/gophermart/internal/storage"
 	"io"
 	"log"
 	"net/http"
 	"time"
 )
 
-type Wrapper struct {
-	DB storage.Storage
+type AccrualClient interface {
+	GetOrder(v string) (datamodels.Accrual, error)
+}
+type Order struct {
+	OrderId string  `json:"order"`
+	Status  string  `json:"status"`
+	Accrual float32 `json:"accrual"`
 }
 
-func (aw Wrapper) Accrual() {
-	allOrders, err := aw.DB.GetAllOrdersForAccrual()
+func (ac Order) GetOrder(v string) (Order, error) {
+
+	addr := conf.GetAccrualAddress()
+	url := addr + "/api/orders/" + v
+	resp, err := http.Get(url)
 	if err != nil {
 		log.Println(err)
-		return
+		return Order{}, err
 	}
-	if allOrders == nil {
-		return
-	}
-	addr := conf.GetAccrualAddress()
-	for _, v := range allOrders {
-		url := addr + "/api/orders/" + v
-		resp, err := http.Get(url)
+	if resp.StatusCode == http.StatusOK {
+		defer resp.Body.Close()
+		payload, err := io.ReadAll(resp.Body)
 		if err != nil {
 			log.Println(err)
-			continue
+			return Order{}, err
 		}
-		if resp.StatusCode == http.StatusOK {
-			defer resp.Body.Close()
-			payload, err := io.ReadAll(resp.Body)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-			var accrual datamodels.Accrual
-			err = json.Unmarshal(payload, &accrual)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-			aw.DB.UpdateAccrual(accrual)
+
+		err = json.Unmarshal(payload, &ac)
+		if err != nil {
+			log.Println(err)
+			return Order{}, err
 		}
-		if resp.StatusCode == http.StatusTooManyRequests {
-			time.Sleep(3 * time.Second)
-		}
+		return ac, nil
 	}
+	if resp.StatusCode == http.StatusTooManyRequests {
+		time.Sleep(3 * time.Second)
+	}
+	return Order{}, errors.New("internal error")
 }

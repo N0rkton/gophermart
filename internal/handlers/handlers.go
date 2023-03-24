@@ -67,7 +67,7 @@ func (ws wrapperStruct) GzipHandle(next http.Handler) http.Handler {
 		}
 		defer gz.Close()
 		w.Header().Set("Content-Encoding", "gzip")
-		r.Body = gzipDecode(r)
+		rWithUser.Body = gzipDecode(r)
 		next.ServeHTTP(gzipWriter{ResponseWriter: w, Writer: gz}, rWithUser)
 	})
 }
