@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/N0rkton/gophermart/internal/datamodels"
-	"github.com/N0rkton/gophermart/internal/secondaryfunctions"
+	"github.com/N0rkton/gophermart/internal/utils"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -31,15 +31,14 @@ var (
 	ErrNotEnoughMoney   = errors.New("not enough money")
 )
 
-// иодель передаваемых данных
 type Storage interface {
 	Register(login string, password string) error
 	Login(login string, password string) (int, error)
 	OrdersPost(order datamodels.OrderInfo) error
-	OrdersGet(order datamodels.OrderInfo) ([]datamodels.Order, error)
+	GetOrderList(order datamodels.OrderInfo) ([]datamodels.Order, error)
 	Balance(order datamodels.OrderInfo) (datamodels.Balance, error)
 	Withdraw(order datamodels.OrderInfo) error
-	Withdrawals(order datamodels.OrderInfo) ([]datamodels.Withdrawals, error)
+	GetWithdrawList(order datamodels.OrderInfo) ([]datamodels.Withdrawals, error)
 	GetAllOrdersForAccrual() ([]string, error)
 	UpdateAccrual(accrual datamodels.Accrual) error
 }
@@ -80,15 +79,15 @@ func (dbs *DBStorage) Login(login string, password string) (int, error) {
 	var v datamodels.Auth
 	err := rows.Scan(&v.ID, &v.Password)
 	if err != nil {
-		return -1, ErrNotFound
+		return 0, ErrNotFound
 	}
 	if v.Password != password {
-		return -1, ErrWrongPassword
+		return 0, ErrWrongPassword
 	}
 	return v.ID, nil
 }
 func (dbs *DBStorage) OrdersPost(order datamodels.OrderInfo) error {
-	check := secondaryfunctions.Checksum(order.OrderID)
+	check := utils.Checksum(order.OrderID)
 	if check != 0 {
 		return ErrInvalidOrder
 	}
@@ -113,7 +112,7 @@ func (dbs *DBStorage) OrdersPost(order datamodels.OrderInfo) error {
 	return nil
 }
 
-func (dbs *DBStorage) OrdersGet(order datamodels.OrderInfo) ([]datamodels.Order, error) {
+func (dbs *DBStorage) GetOrderList(order datamodels.OrderInfo) ([]datamodels.Order, error) {
 	rows, err := dbs.db.Query("select order_id,order_status,accrual, created_at from balance where user_id=$1 ORDER BY created_at DESC ;", order.UserID)
 	if err != nil {
 		return nil, ErrInternal
@@ -147,9 +146,9 @@ func (dbs *DBStorage) Balance(order datamodels.OrderInfo) (datamodels.Balance, e
 		return datamodels.Balance{}, ErrNoData
 	}
 	defer rows.Close()
-	var accrual float64
 	var resp datamodels.Balance
 	for rows.Next() {
+		var accrual float64
 		err = rows.Scan(&accrual)
 		if err != nil {
 			return datamodels.Balance{}, ErrInternal
@@ -163,7 +162,7 @@ func (dbs *DBStorage) Balance(order datamodels.OrderInfo) (datamodels.Balance, e
 	return resp, nil
 }
 func (dbs *DBStorage) Withdraw(order datamodels.OrderInfo) error {
-	check := secondaryfunctions.Checksum(order.OrderID)
+	check := utils.Checksum(order.OrderID)
 	if check != 0 {
 		return ErrInvalidOrder
 	}
@@ -185,7 +184,7 @@ func (dbs *DBStorage) Withdraw(order datamodels.OrderInfo) error {
 	}
 	return nil
 }
-func (dbs *DBStorage) Withdrawals(order datamodels.OrderInfo) ([]datamodels.Withdrawals, error) {
+func (dbs *DBStorage) GetWithdrawList(order datamodels.OrderInfo) ([]datamodels.Withdrawals, error) {
 
 	rows, err := dbs.db.Query("select order_id,accrual, created_at from balance where user_id=$1 and accrual<0 ORDER BY created_at DESC ;", order.UserID)
 	if err != nil {
@@ -196,8 +195,8 @@ func (dbs *DBStorage) Withdrawals(order datamodels.OrderInfo) ([]datamodels.With
 	}
 	defer rows.Close()
 	var resp []datamodels.Withdrawals
-	var tmp datamodels.Withdrawals
 	for rows.Next() {
+		var tmp datamodels.Withdrawals
 		err = rows.Scan(&tmp.Order, &tmp.Sum, &tmp.ProcessedAt)
 		if err != nil {
 			return nil, ErrInternal
@@ -219,8 +218,8 @@ func (dbs *DBStorage) GetAllOrdersForAccrual() ([]string, error) {
 		return nil, ErrNoData
 	}
 	var allOrders []string
-	var tmp string
 	for rows.Next() {
+		var tmp string
 		err = rows.Scan(&tmp)
 		if err != nil {
 			return nil, ErrInternal

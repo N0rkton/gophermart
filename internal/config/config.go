@@ -45,3 +45,6 @@ func NewConfig() Cfg {
 func GetServerAddress() string {
 	return config.ServerAddress
 }
+func GetAccrualAddress() string {
+	return *config.AccrualAddress
+}

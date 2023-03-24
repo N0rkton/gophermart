@@ -1,4 +1,4 @@
-package secondaryfunctions
+package utils
 
 import (
 	"crypto/md5"
