@@ -97,8 +97,6 @@ func (ws wrapperStruct) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	password := utils.GetMD5Hash(body.Password)
-	fmt.Println(password)
-
 	err = ws.DB.Register(body.Login, password)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {

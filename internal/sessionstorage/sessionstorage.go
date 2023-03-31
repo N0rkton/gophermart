@@ -15,8 +15,7 @@ type authUsersStorage struct {
 }
 
 func NewAuthUsersStorage() SessionStorage {
-	var mutex sync.RWMutex
-	return &authUsersStorage{authUsers: make(map[string]int), mutex: mutex}
+	return &authUsersStorage{authUsers: make(map[string]int)}
 }
 func (us *authUsersStorage) AddUser(user string, id int) error {
 	us.mutex.Lock()
@@ -27,9 +26,9 @@ func (us *authUsersStorage) AddUser(user string, id int) error {
 func (us *authUsersStorage) GetUser(user string) (int, error) {
 	us.mutex.RLock()
 	id, ok := us.authUsers[user]
+	us.mutex.RUnlock()
 	if !ok {
 		return 0, errors.New("user not found")
 	}
-	us.mutex.RUnlock()
 	return id, nil
 }
