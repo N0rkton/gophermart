@@ -14,11 +14,11 @@ import (
 
 func main() {
 	ws := handlers.Init()
-
+	ac := accrualclient.NewAC()
 	ticker := time.NewTicker(5 * time.Second)
 	go func() {
 		for range ticker.C {
-			orders(ws.DB)
+			orders(ws.DB, ac)
 		}
 	}()
 	router := mux.NewRouter()
@@ -34,7 +34,8 @@ func main() {
 	log.Fatal(http.ListenAndServe(config.GetServerAddress(), ws.GzipHandle(router)))
 
 }
-func orders(db storage.Storage) {
+func orders(db storage.Storage, ac accrualclient.AccrualClient) {
+
 	allOrders, err := db.GetAllOrdersForAccrual()
 	if err != nil {
 		log.Println(err)
@@ -45,9 +46,13 @@ func orders(db storage.Storage) {
 	}
 	for _, v := range allOrders {
 		var order accrualclient.Order
-		order, err = order.GetOrder(v)
+		order, err = ac.GetOrder(v)
+
 		if err == nil {
 			db.UpdateAccrual(datamodels.Accrual{Order: order.OrderID, Accrual: order.Accrual, Status: order.Status})
+		}
+		if err != nil {
+			log.Println(err)
 		}
 	}
 }

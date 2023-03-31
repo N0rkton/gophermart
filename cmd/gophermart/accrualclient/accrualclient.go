@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	conf "github.com/N0rkton/gophermart/internal/config"
-	"github.com/N0rkton/gophermart/internal/datamodels"
 	"io"
 	"log"
 	"net/http"
@@ -12,18 +11,23 @@ import (
 )
 
 type AccrualClient interface {
-	GetOrder(v string) (datamodels.Accrual, error)
+	GetOrder(orderNumber string) (Order, error)
 }
 type Order struct {
 	OrderID string  `json:"order"`
 	Status  string  `json:"status"`
 	Accrual float32 `json:"accrual"`
 }
+type accrualClient struct {
+	accrualAddr string // -> http://accrualdomain.com/api/orders
+}
 
-func (ac Order) GetOrder(v string) (Order, error) {
+func NewAC() AccrualClient {
+	return &accrualClient{accrualAddr: conf.GetAccrualAddress()}
+}
+func (ac *accrualClient) GetOrder(orderNumber string) (Order, error) {
 
-	addr := conf.GetAccrualAddress()
-	url := addr + "/api/orders/" + v
+	url := ac.accrualAddr + "/api/orders/" + orderNumber
 	resp, err := http.Get(url)
 	if err != nil {
 		log.Println(err)
@@ -36,13 +40,13 @@ func (ac Order) GetOrder(v string) (Order, error) {
 			log.Println(err)
 			return Order{}, err
 		}
-
-		err = json.Unmarshal(payload, &ac)
+		var tmp Order
+		err = json.Unmarshal(payload, &tmp)
 		if err != nil {
 			log.Println(err)
 			return Order{}, err
 		}
-		return ac, nil
+		return tmp, nil
 	}
 	if resp.StatusCode == http.StatusTooManyRequests {
 		time.Sleep(3 * time.Second)

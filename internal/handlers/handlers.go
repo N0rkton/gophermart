@@ -10,6 +10,7 @@ import (
 	conf "github.com/N0rkton/gophermart/internal/config"
 	"github.com/N0rkton/gophermart/internal/cookies"
 	"github.com/N0rkton/gophermart/internal/datamodels"
+	"github.com/N0rkton/gophermart/internal/sessionstorage"
 	"github.com/N0rkton/gophermart/internal/storage"
 	"github.com/N0rkton/gophermart/internal/utils"
 	"github.com/jackc/pgerrcode"
@@ -24,7 +25,7 @@ import (
 type wrapperStruct struct {
 	DB        storage.Storage
 	secret    []byte
-	authUsers map[string]int
+	authUsers sessionstorage.SessionStorage
 }
 
 type gzipWriter struct {
@@ -84,7 +85,7 @@ func Init() wrapperStruct {
 	if err != nil {
 		log.Fatal(err)
 	}
-	authUsers := make(map[string]int)
+	authUsers := sessionstorage.NewAuthUsersStorage()
 	return wrapperStruct{DB: db, secret: secret, authUsers: authUsers}
 }
 
@@ -126,7 +127,7 @@ func (ws wrapperStruct) Register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	ws.authUsers[user] = id
+	ws.authUsers.AddUser(user, id)
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -160,7 +161,7 @@ func (ws wrapperStruct) Login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	ws.authUsers[user] = id
+	ws.authUsers.AddUser(user, id)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -170,8 +171,8 @@ func (ws wrapperStruct) OrdersPost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	id, ok2 := ws.authUsers[r.Context().Value(authenticatedUserKey).(string)]
-	if !ok2 {
+	id, ok2 := ws.authUsers.GetUser(r.Context().Value(authenticatedUserKey).(string))
+	if ok2 != nil {
 		http.Error(w, "Unauthorized user", http.StatusUnauthorized)
 		return
 	}
@@ -189,8 +190,8 @@ func (ws wrapperStruct) OrdersPost(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 func (ws wrapperStruct) OrdersGet(w http.ResponseWriter, r *http.Request) {
-	id, ok2 := ws.authUsers[r.Context().Value(authenticatedUserKey).(string)]
-	if !ok2 {
+	id, ok2 := ws.authUsers.GetUser(r.Context().Value(authenticatedUserKey).(string))
+	if ok2 != nil {
 		http.Error(w, "Unauthorized user", http.StatusUnauthorized)
 		return
 	}
@@ -209,8 +210,8 @@ func (ws wrapperStruct) OrdersGet(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (ws wrapperStruct) Balance(w http.ResponseWriter, r *http.Request) {
-	id, ok2 := ws.authUsers[r.Context().Value(authenticatedUserKey).(string)]
-	if !ok2 {
+	id, ok2 := ws.authUsers.GetUser(r.Context().Value(authenticatedUserKey).(string))
+	if ok2 != nil {
 		http.Error(w, "Unauthorized user", http.StatusUnauthorized)
 		return
 	}
@@ -236,8 +237,8 @@ func (ws wrapperStruct) Withdraw(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	id, ok2 := ws.authUsers[r.Context().Value(authenticatedUserKey).(string)]
-	if !ok2 {
+	id, ok2 := ws.authUsers.GetUser(r.Context().Value(authenticatedUserKey).(string))
+	if ok2 != nil {
 		http.Error(w, "Unauthorized user", http.StatusUnauthorized)
 		return
 	}
@@ -251,8 +252,8 @@ func (ws wrapperStruct) Withdraw(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 func (ws wrapperStruct) Withdrawals(w http.ResponseWriter, r *http.Request) {
-	id, ok2 := ws.authUsers[r.Context().Value(authenticatedUserKey).(string)]
-	if !ok2 {
+	id, ok2 := ws.authUsers.GetUser(r.Context().Value(authenticatedUserKey).(string))
+	if ok2 != nil {
 		http.Error(w, "Unauthorized user", http.StatusUnauthorized)
 		return
 	}
