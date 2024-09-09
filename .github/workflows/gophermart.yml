@@ -12,7 +12,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    container: golang:1.19
+    container: golang:1.23
 
     services:
       postgres:
@@ -31,12 +31,13 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Download autotests binaries
-        uses: robinraju/release-downloader@v1.2
+        uses: robinraju/release-downloader@v1.8
         with:
-          repository: Yandex-Practicum/go-autotests-bin
+          repository: Yandex-Practicum/go-autotests
           latest: true
           fileName: "*"
           out-file-path: .tools
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup autotest binary
         run: |
